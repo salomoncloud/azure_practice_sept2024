@@ -1,0 +1,13 @@
+intro - read requirements, mention access issues and thank ali for solving them
+
+connect vscode to azure with az login
+
+vm azure devops - go over terraform compute file, as well as line 56 to 93 of the yml pipeline for creation via azure devops
+
+monitoring and alerts via devops - go over terraform code and yml lines 95 to 118
+
+go into azure devops, walk the group through how to set up azure devops (connecting with the git commands-init, than remote add origin, than push origin, than service connection) and hit deploy pipeline
+
+go into azure console when all is done and go around to validate creation
+
+az vm user update --resource-group salomon-lablvl1 --name vmlvl1 --username newuser --password 'NewPassword123!'

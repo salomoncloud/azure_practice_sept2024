@@ -1,0 +1,118 @@
+trigger:
+- main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+- task: AzureCLI@2
+  inputs:
+    azureSubscription: 'service-connection'
+    scriptType: 'bash'
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      az --version
+      az account show
+  displayName: 'Azure CLI Login'
+
+- script: |
+    echo "Starting Terraform installation..."
+    sudo apt-get update
+    sudo apt-get install -y wget unzip curl
+    echo "Downloading Terraform..."
+    wget -v https://releases.hashicorp.com/terraform/1.9.6/terraform_1.9.6_linux_amd64.zip
+    echo "Unzipping Terraform..."
+    unzip -v terraform_1.9.6_linux_amd64.zip
+    echo "Moving Terraform to /usr/local/bin..."
+    sudo mv terraform /usr/local/bin/
+    echo "Verifying Terraform installation..."
+    terraform version
+    echo "Terraform installation complete."
+  displayName: 'Install Terraform 1.9.6 (wget method)'
+  timeoutInMinutes: 10
+
+- script: |
+    echo "Attempting alternative Terraform installation..."
+    curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
+    sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
+    sudo apt-get update && sudo apt-get install terraform=1.9.6
+    echo "Verifying Terraform installation..."
+    terraform version
+    echo "Alternative Terraform installation complete."
+  displayName: 'Install Terraform 1.9.6 (apt method)'
+  condition: failed()
+  timeoutInMinutes: 10
+
+- script: |
+    which terraform
+    terraform version
+  displayName: 'Verify Terraform Installation'
+
+- script: |
+    echo "Listing files in $(Build.SourcesDirectory)/Terraform:"
+    ls -la $(Build.SourcesDirectory)/Terraform
+  displayName: 'Check Terraform Directory'
+
+- task: AzureCLI@2
+  inputs:
+    azureSubscription: 'service-connection'
+    scriptType: 'bash'
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      cd $(Build.SourcesDirectory)/Terraform
+      terraform init \
+        -backend-config=storage_account_name=tflablvl1 \
+        -backend-config=container_name=tflablvl1state \
+        -backend-config=key=terraform.tfstate \
+        -backend-config=resource_group_name=salomon-lablvl2
+  displayName: 'Terraform Init'
+
+- task: AzureCLI@2
+  inputs:
+    azureSubscription: 'service-connection'
+    scriptType: 'bash'
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      cd $(Build.SourcesDirectory)/Terraform
+      terraform plan -out=tfplan
+  displayName: 'Terraform Plan'
+
+- task: PublishPipelineArtifact@1
+  inputs:
+    targetPath: '$(Build.SourcesDirectory)/Terraform/tfplan'
+    artifactName: 'tfplan'
+
+- task: AzureCLI@2
+  inputs:
+    azureSubscription: 'service-connection'
+    scriptType: 'bash'
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      cd $(Build.SourcesDirectory)/Terraform
+      terraform apply -auto-approve tfplan
+  displayName: 'Terraform Apply'
+
+- task: AzureCLI@2
+  inputs:
+    azureSubscription: 'service-connection'
+    scriptType: 'bash'
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      cd $(Build.SourcesDirectory)/Terraform
+      terraform plan -out=tfplan-monitoring
+  displayName: 'Terraform Plan (Monitoring and Alerts)'
+
+- task: PublishPipelineArtifact@1
+  inputs:
+    targetPath: '$(Build.SourcesDirectory)/Terraform/tfplan-monitoring'
+    artifactName: 'tfplan-monitoring'
+
+- task: AzureCLI@2
+  inputs:
+    azureSubscription: 'service-connection'
+    scriptType: 'bash'
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      cd $(Build.SourcesDirectory)/Terraform
+      terraform apply -auto-approve tfplan-monitoring
+  displayName: 'Terraform Apply (Monitoring and Alerts)'
